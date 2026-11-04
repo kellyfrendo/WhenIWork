@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+uploads/
+.venv/
+
+# Timesheet exports include staff names.
+*.xlsx
+*.csv

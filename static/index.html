@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timesheet Filter</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="masthead">
+        <p class="eyebrow">When I Work</p>
+        <h1>Timesheet Filter</h1>
+      </header>
+
+      <form class="panel" id="check-form">
+        <div class="drop" id="drop">
+          <input id="file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" />
+          <label for="file">
+            <span class="drop__title" id="file-label">Choose a timesheet</span>
+            <span class="drop__hint">Excel export from WhenIWork (.xlsx)</span>
+          </label>
+        </div>
+
+        <fieldset class="rules">
+          <label class="field field--period">
+            <span>Period</span>
+            <select id="period">
+              <option value="all">All data provided</option>
+              <option value="last-month">Last month</option>
+              <option value="this-month">This month</option>
+              <option value="last-week" selected>Last week</option>
+              <option value="this-week">This week</option>
+            </select>
+          </label>
+          <label class="field field--time">
+            <span>Clock in before</span>
+            <input id="clock-in" type="time" value="07:45" />
+          </label>
+          <label class="field field--time">
+            <span>Clock out after</span>
+            <input id="clock-out" type="time" value="15:45" />
+          </label>
+          <label class="field field--days">
+            <span>At least</span>
+            <span class="days">
+              <input id="minimum" type="number" min="1" step="1" value="10" inputmode="numeric" />
+              <span>days</span>
+            </span>
+          </label>
+          <div class="exclude">
+            <label class="exclude__check" for="exclude-note">
+              <input id="exclude-note" type="checkbox" />
+              <span>Exclude clock out note</span>
+            </label>
+            <input id="exclude-text" type="text" placeholder="Note text" disabled />
+            <button class="check" type="submit" id="submit">Show Results</button>
+          </div>
+          <label class="field field--schedule" id="schedule-field" hidden>
+            <span>Schedule</span>
+            <select id="schedule">
+              <option value="">All schedules</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <p class="form-error" id="form-error" hidden></p>
+      </form>
+
+      <section class="results" id="results" hidden></section>
+      <p class="footnote">This runs on your computer. The timesheet is not sent anywhere else.</p>
+    </main>
+    <script src="/timesheet.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
