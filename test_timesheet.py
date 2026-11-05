@@ -134,6 +134,49 @@ class TimesheetTests(unittest.TestCase):
         self.assertEqual(notes["Edith Clarke"], "Doctor visit")
         self.assertEqual(notes["Grace Hopper"], "")
 
+    def test_manager_note_excludes_the_person(self):
+        early = excel_serial(datetime(2026, 10, 1, 7, 30))
+        late = excel_serial(datetime(2026, 10, 1, 16, 0))
+        data = workbook(
+            [
+                ["First Name", "Last Name", "Employee ID", "Date", "Start Time", "End Time", "Position", "Schedule", "Clock Out Note", "Manager Note"],
+                ["Ada", "Lovelace", "10", "", early, late, "Teacher", "Windsor", "Out for lunch", ""],
+                ["Grace", "Hopper", "11", "", early, late, "Teacher", "Windsor", "", "See HR"],
+                ["Grace", "Hopper", "11", "", excel_serial(datetime(2026, 10, 2, 7, 30)), excel_serial(datetime(2026, 10, 2, 16, 0)), "Teacher", "Windsor", "", ""],
+                ["Edith", "Clarke", "12", "", early, late, "Teacher", "Windsor", "Doctor visit", "On site"],
+            ]
+        )
+        punches = read_timesheet(data, "timesheets.xlsx")
+        result = evaluate(
+            punches,
+            Rule(
+                clock_in_before=datetime.strptime("07:45", "%H:%M").time(),
+                clock_out_after=datetime.strptime("15:45", "%H:%M").time(),
+                minimum_days=1,
+                exclude_note="HR",
+            ),
+        )
+        self.assertEqual([person["name"] for person in result["matched"]], ["Edith Clarke", "Ada Lovelace"])
+        self.assertEqual([person["name"] for person in result["excluded"]], ["Grace Hopper"])
+        self.assertEqual(
+            [(day["clockOutNote"], day["excludedByNote"]) for day in result["excluded"][0]["days"]],
+            [("See HR", True), ("", False)],
+        )
+        edith = next(person for person in result["matched"] if person["name"] == "Edith Clarke")
+        self.assertEqual(edith["days"][0]["clockOutNote"], "Clock out: Doctor visit · Manager: On site")
+
+        same = workbook(
+            [
+                ["First Name", "Last Name", "Employee ID", "Date", "Start Time", "End Time", "Position", "Schedule", "Clock Out Note", "Manager Note"],
+                ["Ida", "Wells", "14", "", early, late, "Teacher", "Windsor", "HR", "HR"],
+            ]
+        )
+        shown = evaluate(
+            read_timesheet(same, "timesheets.xlsx"),
+            Rule(datetime.strptime("07:45", "%H:%M").time(), datetime.strptime("15:45", "%H:%M").time(), 1),
+        )
+        self.assertEqual(shown["matched"][0]["days"][0]["clockOutNote"], "Clock out: HR · Manager: HR")
+
     def test_period_keeps_only_the_chosen_dates(self):
         today = date(2026, 11, 4)
         self.assertIsNone(period_bounds("all", today))

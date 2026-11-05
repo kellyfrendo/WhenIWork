@@ -12,6 +12,7 @@ const HEADER_ALIASES = {
   position: "position",
   schedule: "schedule",
   "clock out note": "out_note",
+  "manager note": "manager_note",
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -100,6 +101,7 @@ function evaluatePunches(punches, rule, today) {
         punches: 0,
         positions: [],
         outNotes: [],
+        managerNotes: [],
         excludedByNote: false,
       };
       grouped.set(key, day);
@@ -107,7 +109,13 @@ function evaluatePunches(punches, rule, today) {
     day.punches += 1;
     if (punch.position) day.positions.push(punch.position);
     if (punch.outNote && !day.outNotes.includes(punch.outNote)) day.outNotes.push(punch.outNote);
-    if (needle && punch.outNote.toLowerCase().includes(needle)) day.excludedByNote = true;
+    if (punch.managerNote && !day.managerNotes.includes(punch.managerNote)) day.managerNotes.push(punch.managerNote);
+    if (
+      needle
+      && (punch.outNote.toLowerCase().includes(needle) || punch.managerNote.toLowerCase().includes(needle))
+    ) {
+      day.excludedByNote = true;
+    }
     if (compareMoments(punch.start, day.clockIn) < 0) day.clockIn = punch.start;
     if (punch.end && (!day.clockOut || compareMoments(punch.end, day.clockOut) > 0)) day.clockOut = punch.end;
   });
@@ -164,12 +172,14 @@ function evaluatePunches(punches, rule, today) {
 
 function excludedPeople(punches, needle) {
   if (!needle) return new Set();
-  if (!punches.length || !punches[0].hasOutNoteColumn) {
-    throw new TimesheetError("This timesheet has no Clock Out Note column.");
+  if (!punches.length || (!punches[0].hasOutNoteColumn && !punches[0].hasManagerNoteColumn)) {
+    throw new TimesheetError("This timesheet has no Clock Out Note or Manager Note column.");
   }
   const excluded = new Set();
   punches.forEach((punch) => {
-    if (punch.outNote.toLowerCase().includes(needle)) excluded.add(punch.personId);
+    if (punch.outNote.toLowerCase().includes(needle) || punch.managerNote.toLowerCase().includes(needle)) {
+      excluded.add(punch.personId);
+    }
   });
   return excluded;
 }
@@ -209,12 +219,19 @@ function personRecord(person, includeAll) {
       dateLabel: formatDate(day.clockIn),
       clockIn: formatTime(day.clockIn.minutes),
       clockOut: clockOutLabel(day),
-      clockOutNote: day.outNotes.join(" · "),
+      clockOutNote: notesLabel(day),
       entries: day.punches,
       metRule: Boolean(day.metRule),
       excludedByNote: Boolean(day.excludedByNote),
     })),
   };
+}
+
+function notesLabel(day) {
+  if (day.outNotes.length && day.managerNotes.length) {
+    return `Clock out: ${day.outNotes.join(" · ")} · Manager: ${day.managerNotes.join(" · ")}`;
+  }
+  return day.outNotes.concat(day.managerNotes).join(" · ");
 }
 
 function clockOutLabel(day) {
@@ -327,7 +344,9 @@ function punchesFromRows(rows) {
       position: cell(row, columns, "position"),
       schedule: cell(row, columns, "schedule"),
       outNote: cell(row, columns, "out_note"),
+      managerNote: cell(row, columns, "manager_note"),
       hasOutNoteColumn: Object.prototype.hasOwnProperty.call(columns, "out_note"),
+      hasManagerNoteColumn: Object.prototype.hasOwnProperty.call(columns, "manager_note"),
     });
   });
   if (!punches.length) throw new TimesheetError("The timesheet has column headers, but no clock entries.");

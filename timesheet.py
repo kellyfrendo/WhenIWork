@@ -23,6 +23,7 @@ HEADER_ALIASES = {
     "position": "position",
     "schedule": "schedule",
     "clock out note": "out_note",
+    "manager note": "manager_note",
 }
 
 
@@ -58,7 +59,9 @@ class Rule:
             f"on at least {self.minimum_days} {day_word} in this report."
         )
         if self.exclude_note:
-            sentence += f' Anyone whose clock out note contains "{self.exclude_note}" is excluded.'
+            sentence += (
+                f' Anyone whose clock out note or manager note contains "{self.exclude_note}" is excluded.'
+            )
         return sentence
 
 
@@ -153,6 +156,7 @@ def evaluate(punches: list[dict], rule: Rule, today: date | None = None) -> dict
                 "punches": 0,
                 "positions": [],
                 "out_notes": [],
+                "manager_notes": [],
                 "excluded_by_note": False,
             }
             grouped[key] = day
@@ -162,7 +166,12 @@ def evaluate(punches: list[dict], rule: Rule, today: date | None = None) -> dict
         note = punch.get("out_note", "")
         if note and note not in day["out_notes"]:
             day["out_notes"].append(note)
-        if note_needle and note_needle in note.casefold():
+        manager_note = punch.get("manager_note", "")
+        if manager_note and manager_note not in day["manager_notes"]:
+            day["manager_notes"].append(manager_note)
+        if note_needle and (
+            note_needle in note.casefold() or note_needle in manager_note.casefold()
+        ):
             day["excluded_by_note"] = True
         if punch["start"] < day["clock_in"]:
             day["clock_in"] = punch["start"]
@@ -237,11 +246,13 @@ def _excluded_people(punches: list[dict], note: str) -> set[str]:
     needle = " ".join(note.split()).casefold()
     if not needle:
         return set()
-    if not punches or not punches[0].get("has_out_note_column"):
-        raise TimesheetError("This timesheet has no Clock Out Note column.")
+    if not punches or not (
+        punches[0].get("has_out_note_column") or punches[0].get("has_manager_note_column")
+    ):
+        raise TimesheetError("This timesheet has no Clock Out Note or Manager Note column.")
     excluded = set()
     for punch in punches:
-        if needle in punch["out_note"].casefold():
+        if needle in punch.get("out_note", "").casefold() or needle in punch.get("manager_note", "").casefold():
             excluded.add(punch["person_id"])
     return excluded
 
@@ -280,7 +291,7 @@ def _person_record(person: dict, include_all: bool = False) -> dict:
                 "dateLabel": format_date(day["clock_in"]),
                 "clockIn": format_time(day["clock_in"].time()),
                 "clockOut": _clock_out_label(day),
-                "clockOutNote": " · ".join(day["out_notes"]),
+                "clockOutNote": _notes_label(day),
                 "entries": day["punches"],
                 "metRule": bool(day.get("met_rule")),
                 "excludedByNote": bool(day.get("excluded_by_note")),
@@ -288,6 +299,14 @@ def _person_record(person: dict, include_all: bool = False) -> dict:
             for day in days
         ],
     }
+
+
+def _notes_label(day: dict) -> str:
+    outs = day["out_notes"]
+    managers = day.get("manager_notes", [])
+    if outs and managers:
+        return f"Clock out: {' · '.join(outs)} · Manager: {' · '.join(managers)}"
+    return " · ".join(outs + managers)
 
 
 def _clock_out_label(day: dict) -> str:
@@ -357,7 +376,9 @@ def _punches_from_rows(rows: list[dict[str, str]]) -> list[dict]:
                 "position": _cell(row, columns, "position"),
                 "schedule": _cell(row, columns, "schedule"),
                 "out_note": _cell(row, columns, "out_note"),
+                "manager_note": _cell(row, columns, "manager_note"),
                 "has_out_note_column": "out_note" in columns,
+                "has_manager_note_column": "manager_note" in columns,
             }
         )
     if not punches:
